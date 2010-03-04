@@ -20,6 +20,22 @@ if !exists('g:block_comment_padding')
   let g:block_comment_padding = " "
 endif
 
+if !exists('g:scomment_reselect')
+  let g:scomment_reselect = 1
+endif
+
+if !exists('g:scomment_default_mapping')
+  let g:scomment_default_mapping = 1
+endif
+
+fun! s:select(a,e)
+  if g:scomment_reselect
+    normal gv
+  endif
+endf
+
+
+
 fun! s:ensureOnelineBlock(pattern,a,e)
   let succ = 1
   for i in range(a:a,a:e)
@@ -92,6 +108,7 @@ fun! s:doComment(force_oneline,a,e)
       for i in range(a:a,a:e)
         cal setline(i, mark . g:oneline_comment_padding . getline(i) )
       endfor
+      cal s:select(a:a,a:e)
       return
     endif
   endif
@@ -154,6 +171,7 @@ fun! s:unComment(a,e)
   if len(css) == 2
     let succ =  s:_unComment(css[0],css[1],a:a,a:e)
     if succ 
+      cal s:select(a:a,a:e)
       return
     endif
   endif
@@ -161,6 +179,7 @@ fun! s:unComment(a,e)
   if strlen(m1) > 0 && strlen(m2) > 0
     let succ =  s:_unComment(m1,m2,a:a,a:e)
     if succ 
+      cal s:select(a:a,a:e)
       return
     endif
   endif
@@ -170,6 +189,7 @@ fun! s:unComment(a,e)
     let succ = s:ensureOnelineBlock( '^\s*' . s:escape_cm(css[0]) . g:oneline_comment_padding,a:a,a:e)
     if succ
       cal s:trimCommentLines( '^\s*' . s:escape_cm(css[0]) . g:oneline_comment_padding , a:a , a:e )
+      cal s:select(a:a,a:e)
       return
     endif
   endif
@@ -179,6 +199,7 @@ fun! s:unComment(a,e)
     let succ = s:ensureOnelineBlock( '^\s*'. s:escape_cm(s1) . g:oneline_comment_padding ,a:a,a:e)
     if succ 
       cal s:trimCommentLines( '^\s*' . s:escape_cm(s1) . g:oneline_comment_padding , a:a , a:e )
+      cal s:select(a:a,a:e)
       return
     endif
   endif
@@ -188,6 +209,7 @@ fun! s:unComment(a,e)
     let succ = s:ensureOnelineBlock( '^\s*' . s:escape_cm(css[0]) . g:oneline_comment_padding,a:a,a:e)
     if succ
       cal s:trimCommentLines( '^\s*' . s:escape_cm(css[0]) . g:oneline_comment_padding , a:a , a:e )
+      cal s:select(a:a,a:e)
       return
     endif
   endif
@@ -211,7 +233,9 @@ fun! s:onelineComment(a,e)
   else
     cal s:doComment(1,a:a,a:e)
   endif
+  cal s:select(a:a,a:e)
 endf
+
 
 
 fun! s:init_python()
@@ -232,6 +256,9 @@ aug END
 com! -range DoComment :cal s:doComment(0,<line1>,<line2>)
 com! -range UnComment :cal s:unComment(<line1>,<line2>)
 com! -range OneLineComment :cal s:onelineComment(<line1>,<line2>)
-map <silent>   ,c    :DoComment<CR>
-map <silent>   ,C    :UnComment<CR>
-map <silent>   ,,    :OneLineComment<CR>
+
+if g:scomment_default_mapping
+  map <silent>   ,c    :DoComment<CR>
+  map <silent>   ,C    :UnComment<CR>
+  map <silent>   ,,    :OneLineComment<CR>
+endif
