@@ -7,34 +7,27 @@
 "   Github: http://github.com/c9s
 "   Script Name: simplecommenter
 "   Script Type: plugin
-
-if !exists('g:prefer_commentstring')
-  let g:prefer_commentstring = 1
+if exists('loaded_scommenter') && ! exists('force_reload')
+  finish
 endif
-
-if !exists('g:oneline_comment_padding')
-  let g:oneline_comment_padding = ' '
+if exists('force_reload')
+  redraw
+  echo "Force Reloading : SimpleCommenter"
 endif
+let loaded_scommenter = 1
 
-if !exists('g:block_comment_padding')
-  let g:block_comment_padding = " "
-endif
-
-if !exists('g:scomment_reselect')
-  let g:scomment_reselect = 1
-endif
-
-if !exists('g:scomment_default_mapping')
-  let g:scomment_default_mapping = 1
-endif
-
-fun! s:select(a,e)
-  if g:scomment_reselect
-    normal gv
+fun! s:def(name,value)
+  if ! exists(a:name)
+    let {a:name} = a:value
   endif
 endf
 
 
+fun! s:select(a,e)
+  if g:scomment_reselect && a:a != a:e
+    normal gv
+  endif
+endf
 
 fun! s:ensureOnelineBlock(pattern,a,e)
   let succ = 1
@@ -71,6 +64,25 @@ fun! s:getCommentMarks()
       let oneline_mark = strpart(c,1) . ' '
     endif
   endfor
+
+  " some small patch
+  let ft = &filetype
+  if !g:scomment_prefer_commentstring && strlen(oneline_mark) == 0 
+    if ft == 'vim'
+      let oneline_mark = '" '
+    elseif ft = 'php'
+      let oneline_mark = '// '
+    endif
+  endif
+  if strlen(mark1) == 0 && strlen(mark2) == 0
+    if ft == 'python'
+      let [ mark1 , mark2 ] = [ '"""' ,'"""' ]
+    elseif ft == 'perl'
+      let [ mark1 , mark2 ] = [ '=pod' ,'=cut' ]
+    elseif ft == 'php'
+      let [ mark1 , mark2 ] = [ '/*' , '*/' ]
+    endif
+  endif
   return [ mark1 , mark2 , oneline_mark ]
 endf
 
@@ -96,13 +108,13 @@ fun! s:doComment(force_oneline,a,e)
   let onlyblock   = strlen(m1)>0 && strlen(m2)>0
         \ && (strlen(s1)==0 || len(css)==2)
 
-  if a:force_oneline || onlyoneline 
+  if a:force_oneline || onlyoneline
     let mark = ''
     if len(css) == 2 && strlen(s1) > 0
       let mark = s1
     elseif len(css) == 1
       let mark = strlen(s1) > 0 ? s1 : css[0]
-      let mark = g:prefer_commentstring ? css[0] : mark
+      let mark = g:scomment_prefer_commentstring ? css[0] : mark
     endif
     if strlen(mark) > 0
       for i in range(a:a,a:e)
@@ -113,7 +125,7 @@ fun! s:doComment(force_oneline,a,e)
     endif
   endif
 
-  if (len(css) == 2 && g:prefer_commentstring)
+  if (len(css) == 2 && g:scomment_prefer_commentstring)
     let mark1 = css[0]
     let mark2 = css[1]
   else
@@ -126,6 +138,7 @@ fun! s:doComment(force_oneline,a,e)
 
   cal setline(a:a,  mark1 . sep . getline(a:a)  )
   cal setline(a:e, getline(a:e) . sep . mark2 )
+  "cal s:select(a:a,a:e)
 endf
 
 
@@ -184,7 +197,7 @@ fun! s:unComment(a,e)
     endif
   endif
 
-  if g:prefer_commentstring && len(css) == 1
+  if g:scomment_prefer_commentstring && len(css) == 1
     " single comment mark
     let succ = s:ensureOnelineBlock( '^\s*' . s:escape_cm(css[0]) . g:oneline_comment_padding,a:a,a:e)
     if succ
@@ -238,8 +251,16 @@ endf
 
 
 
+cal s:def('g:oneline_comment_padding',' ')
+cal s:def('g:block_comment_padding', ' ')
+
+cal s:def('g:scomment_prefer_commentstring', 1)
+cal s:def('g:scomment_reselect',1)
+cal s:def('g:scomment_default_mapping',1)
+
+
 fun! s:init_python()
-  let g:prefer_commentstring = 1
+  let g:scomment_prefer_commentstring = 1
   setlocal comments+=s1:\"\"\",ex:\"\"\"
 endf
 
@@ -253,12 +274,19 @@ aug CommentFix
   au filetype perl   :cal s:init_perl() 
 aug END
 
+com!        CommentReselectEnable    :let g:scomment_reselect = 1 | echo "Comment reselecting On"
+com!        CommentReselectDisable   :let g:scomment_reselect = 0 | echo "Comment reselecting Off"
+
 com! -range DoComment :cal s:doComment(0,<line1>,<line2>)
 com! -range UnComment :cal s:unComment(<line1>,<line2>)
 com! -range OneLineComment :cal s:onelineComment(<line1>,<line2>)
 
+map <silent> <Plug>(do-comment)  :DoComment<CR>
+map <silent> <Plug>(un-comment)  :UnComment<CR>
+map <silent> <Plug>(one-line-comment) :OneLineComment<CR>
+
 if g:scomment_default_mapping
-  map <silent>   ,c    :DoComment<CR>
-  map <silent>   ,C    :UnComment<CR>
-  map <silent>   ,,    :OneLineComment<CR>
+  map <silent>   ,c    <Plug>(do-comment)
+  map <silent>   ,C    <Plug>(un-comment)
+  map <silent>   ,,    <Plug>(one-line-comment)
 endif
